@@ -1,5 +1,15 @@
-﻿var window_width = window.innerWidth;
+﻿
+/**
+ * this file was compiled by jsbuild 0.9.6
+ * @date Mon, 16 Jul 2012 18:46:47 UTC
+ * @author dron
+ * @site http://ucren.com
+ */
+
+var window_width = window.innerWidth;
 var window_height = window.innerHeight;
+
+var BAMBAM_MAL = 0, BAMBAM_NORMAL = 1, BAMBAM_RAIVA = 2;
 
 void function(global){
 	var mapping = {}, cache = {};
@@ -135,6 +145,7 @@ define("scripts/control.js", function(exports){
 	var knife = require("scripts/object/knife");
 	var message = require("scripts/message");
 	var state = require("scripts/state");
+	var timeline = require("scripts/timeline");
 	
 	var canvasLeft, canvasTop;
 	
@@ -150,8 +161,14 @@ define("scripts/control.js", function(exports){
 	    var dragger = new Ucren.BasicDrag({ type: "calc" });
 	
 	    dragger.on("returnValue", function( dx, dy, x, y, kf ){
-	    	if( kf = knife.through( x - canvasLeft, y - canvasTop ) )
+	    	if( kf = knife.through( x - canvasLeft, y - canvasTop ) ) {
 	            message.postMessage( kf, "slice" );
+	            if( state( "drag-enable" ).ison() ) {
+	            	timeline.setTimeout(function(){
+						message.postMessage( "drag" );
+	    			}, 1000);
+	            }
+	    	}
 	    });
 	
 	    dragger.on("startDrag", function(){
@@ -192,6 +209,7 @@ define("scripts/game.js", function(exports){
 	/**
 	 * game logic
 	 */
+	var layer = require("scripts/layer");
 	var timeline = require("scripts/timeline");
 	var Ucren = require("scripts/lib/ucren");
 	var sound = require("scripts/lib/sound");
@@ -207,6 +225,7 @@ define("scripts/game.js", function(exports){
 	var light = require("scripts/object/light");
 	
 	var scoreNumber = 0;
+	var comboHit = 0;
 	
 	var random = Ucren.randomNumber;
 	
@@ -216,6 +235,26 @@ define("scripts/game.js", function(exports){
 	
 	var snd;
 	var boomSnd;
+
+	var detectCombo = function() {
+		if(comboHit >= 3) {
+
+			score.changeBambam(BAMBAM_MAL);
+
+			score.setCombo(comboHit);
+			score.showCombo();
+			timeline.setTimeout(function(){
+				score.hideCombo();
+	    	}, 2000);
+		}
+		else {
+			score.changeBambam(BAMBAM_NORMAL);
+		}
+
+		timeline.setTimeout(function(){
+			comboHit = 0;
+	    }, 1000);
+	}
 	
 	// fruit barbette
 	var barbette = function(){
@@ -275,7 +314,13 @@ define("scripts/game.js", function(exports){
 	            fruits.splice( index, 1 );
 	        score.number( ++ scoreNumber );
 	        this.applyScore( scoreNumber );
+
+	        score.setCombo( ++ comboHit );
+	        detectCombo();
+
 	    }else{
+	    	score.changeBambam(BAMBAM_RAIVA);
+
 	        boomSnd.play();
 	        this.pauseAllFruit();
 	        background.wobble();
@@ -305,8 +350,10 @@ define("scripts/game.js", function(exports){
 	    if( state( "game-state" ).isnot( "playing" ) ) {
 	        return ;
 	    }
-	
+	    
 	    if( fruit.type != "boom" ) {
+	    	score.changeBambam(BAMBAM_RAIVA);
+
 	        lose.showLoseAt( fruit.originX );
 	    }
 	});
@@ -322,8 +369,18 @@ define("scripts/game.js", function(exports){
 	        fruits[i].remove();
 	    background.stop();
 	});
+
+	message.addEventListener("drag", function(){
+		if(state( "drag-enable" ).ison()) {
+			state( "drag-enable" ).off();
+			state( "click-enable" ).off();
+	    	gameOver.hide();
+	    	message.postMessage( "home-menu", "sence.switchSence" );
+		}
+	});
 	
 	message.addEventListener("click", function(){
+		state( "drag-enable" ).off();
 	    state( "click-enable" ).off();
 	    gameOver.hide();
 	    message.postMessage( "home-menu", "sence.switchSence" );
@@ -555,7 +612,7 @@ define("scripts/sence.js", function(exports){
 	var newGame = require("scripts/object/new-game");
 	//var quit = require("scripts/object/quit");
 	//var newSign = require("scripts/object/new");
-	var peach, sandia, boom;
+	var coco, boom;
 	
 	// the elements in game body
 	var score = require("scripts/object/score");
@@ -575,12 +632,31 @@ define("scripts/sence.js", function(exports){
 	var setInterval = timeline.setInterval.bind( timeline );
 	
 	var menuSnd;
-	var gameStartSnd;
+	var gameStartSnd, ibirapueraSnd, jaulaSnd, comiSnd;
+
+	var IBIRAPUERA_NUMBER = 0;
+	var JAULA_NUMBER = 1;
+
+	var maxStartSnds = 2;
+
+	var switchSound = function() {
+		var value = Math.floor(Math.random() * maxStartSnds);
+		switch(value) {
+			case IBIRAPUERA_NUMBER:
+				gameStartSnd = ibirapueraSnd;
+				break;
+			case JAULA_NUMBER:
+				gameStartSnd = jaulaSnd;
+				break;
+		}
+	}
 	
 	// initialize sence
 	exports.init = function(){
 	    menuSnd = sound.create( "sound/menu" );
-	    gameStartSnd = sound.create( "sound/start" );
+	    ibirapueraSnd = sound.create( "sound/arvoreibirapuera" );
+	    jaulaSnd = sound.create( "sound/saindodajaula" );
+	    comiSnd = sound.create( "sound/comipracaralho" );
 		[ background, homeMask, logo, ninja, homeDesc, newGame, score, lose, developing, gameOver, flash ].invoke( "set" );
 	    // setInterval( fps.update.bind( fps ), 500 );
 	};
@@ -624,13 +700,11 @@ define("scripts/sence.js", function(exports){
 	exports.showMenu = function( callback ){
 	    var callee = arguments.callee;
 	    var times = callee.times = ++ callee.times || 1;
+
+	    coco = fruit.create( "coco", window_width/2, window_height - 175/2 - 30, true );
 	
-	    // peach = fruit.create( "peach", 137, 333, true );
-	    sandia = fruit.create( "peach", window_width/2 + 5, window_height - 175/2 - 25, true );
-	    // boom = fruit.create( "boom", 552, 367, true, 2500 );
-	
-	    [ sandia ].forEach(function( f ){ f.isHomeMenu = 1; });
-	    sandia.isNewGameIcon = 1;
+	    [ coco ].forEach(function( f ){ f.isHomeMenu = 1; });
+	    coco.isNewGameIcon = 1;
 	
 	    var group = [
 	    	[ homeMask, 0 ], 
@@ -641,11 +715,11 @@ define("scripts/sence.js", function(exports){
 	
 	    	[ newGame, 2000 ], 	        
 	
-	        [ sandia, 2000 ]
+	        [ coco, 2000 ]
 	    ];
 	
 	    group.invoke( "show" );
-	    [ sandia ].invoke( "rotate", 2500 );
+	    [ coco ].invoke( "rotate", 2500 );
 	
 	    menuSnd.play();
 	    setTimeout( callback, 2500 );
@@ -655,7 +729,7 @@ define("scripts/sence.js", function(exports){
 	exports.hideMenu = function( callback ){
 	    [ newGame ].invoke( "hide" );
 	    [ homeMask, logo, ninja, homeDesc ].invoke( "hide" );
-	    [ sandia ].invoke( "fallOff", 150 );
+	    [ coco ].invoke( "fallOff", 150 );
 	
 	    menuSnd.stop();
 	    setTimeout( callback, fruit.getDropTimeSetting() );
@@ -667,6 +741,7 @@ define("scripts/sence.js", function(exports){
 	    lose.show();
 	    game.start();
 	    
+	    switchSound();
 	    gameStartSnd.play();
 	    setTimeout( callback, 1000 );
 	};
@@ -676,8 +751,8 @@ define("scripts/sence.js", function(exports){
 	    score.hide();
 	    lose.hide();
 	
-	    gameStartSnd.stop();
-	    setTimeout( callback, 1000 );
+	    comiSnd.play();
+	    setTimeout( callback, 2500 );
 	};
 	
 	// to enter dojo mode
@@ -1158,16 +1233,16 @@ define("scripts/factory/fruit.js", function(exports){
 	var infos = {
 		// type: [ imageSrc, width, height, radius, fixAngle, isReverse, juiceColor ]
 		boom: [ "images/fruit/boom.png", 66, 68, 26, 0, 0, null ],
-		peach: [ "images/fruit/peach.png", 62, 59, 37, -50, 0, "#e6c731" ],
-		sandia: [ "images/fruit/sandia.png", 120, 85, 38, -100, 0, "#c00" ],
-		apple: [ "images/fruit/apple.png", 66, 66, 31, -54, 0, "#c8e925" ],
-		banana: [ "images/fruit/banana.png", 126, 50, 43, 90, 0, null ],
-		basaha: [ "images/fruit/basaha.png", 318, 139, 150, -135, 0, "#c00" ]
+		max: [ "images/fruit/max.png", 62, 59, 37, -50, 0, null ],
+		whey: [ "images/fruit/whey.png", 120, 85, 60, 90, 0, null ],
+		squeeze: [ "images/fruit/squeeze.png", 100, 66, 50, 90, 0, null ],
+		tronco: [ "images/fruit/tronco.png", 195, 100, 90, 45, 0, null ],
+		coco: [ "images/fruit/coco.png", 100, 100, 50, 45, 0, null ]
 	};
 	
 	// TODO: 是否水果全开？
-	var types = [ "peach", "sandia", "apple", "banana", "basaha" ];
-	// var types = [ "sandia", "boom" ];
+	var types = [ "max", "whey", "squeeze", "tronco", "coco" ];
+	// var types = [ "whey", "boom" ];
 	var rotateSpeed = [ 60, 50, 40, -40, -50, -60 ];
 	
 	var fruitCache = [];
@@ -1214,7 +1289,7 @@ define("scripts/factory/fruit.js", function(exports){
 		    this.flame.pos( x + 4, y + 5 );
 	
 		// alert("this.fallOffing = " + this.fallOffing + ", this.fallOutOfViewerCalled = " + !this.fallOutOfViewerCalled + ", y = " + y + " e window_height = " + window_height);
-		if( this.fallOffing && !this.fallOutOfViewerCalled && y > window_height - 80) {
+		if( this.fallOffing && !this.fallOutOfViewerCalled && y > window_height - 100) {
 			this.fallOutOfViewerCalled = 1;
 			message.postMessage( this, "fruit.fallOutOfViewer" );
 		}
@@ -4179,7 +4254,7 @@ define("scripts/object/flash.js", function(exports){
 	var Ucren = require("scripts/lib/ucren");
 	var sound = require("scripts/lib/sound");
 	
-	var image, snd, xDiff = 0, yDiff = 0;
+	var image, snd, grito01, grito02, grito03, grito04, grito05, grito06, xDiff = 0, yDiff = 0;
 	
 	var anim = tween.quadratic.cio;
 	var anims = [];
@@ -4189,10 +4264,48 @@ define("scripts/object/flash.js", function(exports){
 	
 	// if( Ucren.isIe || Ucren.isSafari )
 	// 	switchOn = false;
+
+	var maxGritos = 6;
+
+	var GRITO01_NUMBER = 0;
+	var GRITO02_NUMBER = 1;
+	var GRITO03_NUMBER = 2;
+	var GRITO04_NUMBER = 3;
+	var GRITO05_NUMBER = 4;
+	var GRITO06_NUMBER = 5;
+
+	var switchSound = function() {
+		var value = Math.floor(Math.random() * maxGritos);
+		switch(value) {
+			case GRITO01_NUMBER:
+				snd = grito01;
+				break;
+			case GRITO02_NUMBER:
+				snd = grito02;
+				break;
+			case GRITO03_NUMBER:
+				snd = grito03;
+				break;
+			case GRITO04_NUMBER:
+				snd = grito04;
+				break;
+			case GRITO05_NUMBER:
+				snd = grito05;
+				break;
+			case GRITO06_NUMBER:
+				snd = grito06;
+				break;
+		}
+	}
 	
 	exports.set = switchOn ? function(){
 		image = layer.createImage( "flash", "images/flash.png", 0, 0, 358, 20 ).hide();
-		snd = sound.create( "sound/splatter" );
+		grito01 = sound.create( "sound/grito01" );
+		grito02 = sound.create( "sound/grito02" );
+		grito03 = sound.create( "sound/grito03" );
+		grito04 = sound.create( "sound/grito04" );
+		grito05 = sound.create( "sound/grito05" );
+		grito06 = sound.create( "sound/grito06" );
 	} : Ucren.nul;
 	
 	exports.showAt = switchOn ? function( x, y, an ){
@@ -4204,6 +4317,7 @@ define("scripts/object/flash.js", function(exports){
 	
 	    anims.clear && anims.clear();
 	
+		switchSound();
 	    snd.play();
 	
 	    timeline.createTask({
@@ -4253,12 +4367,13 @@ define("scripts/object/flash.js", function(exports){
  */ 
 define("scripts/object/game-over.js", function(exports){
 	var layer = require("scripts/layer");
+	var sound = require("scripts/lib/sound");
 	var tween = require("scripts/lib/tween");
 	var timeline = require("scripts/timeline");
 	var message = require("scripts/message");
 	var state = require("scripts/state");
 
-	var bambam;
+	var bambam, gameoverSnd;
 	
 	var exponential = tween.exponential.co;
 	
@@ -4269,6 +4384,7 @@ define("scripts/object/game-over.js", function(exports){
 	exports.anims = [];
 	
 	exports.set = function(){
+		gameoverSnd = sound.create( "sound/naovaidarnao" );
 		this.image = layer.createImage( "default", "images/game-over.png", window_width/2 - 246/2, window_height/2 - 114, 246, 114 ).hide().scale( 1e-5, 1e-5 );
 		bambam = layer.createImage( "default", "images/bambam.png", window_width/2 - 343/2, window_height - 270, 343, 274 ).hide().scale( 1e-5, 1e-5 );
 	};
@@ -4295,6 +4411,9 @@ define("scripts/object/game-over.js", function(exports){
 		if( mode == "show" ) {
 			bambam.show();
 			this.image.show();
+			gameoverSnd.stop();
+			state( "click-enable" ).on();
+			state( "drag-enable" ).on();
 		}
 	};
 	
@@ -4304,8 +4423,10 @@ define("scripts/object/game-over.js", function(exports){
 	};
 	
 	exports.onZoomEnd = function( sz, ez, mode ){
-		if( mode == "show" )
+		if( mode == "show" ) {
 			state( "click-enable" ).on();
+			state( "drag-enable" ).on();
+		}
 	    else if( mode === "hide" ) {
 	    	bambam.hide();
 	        this.image.hide();
@@ -4575,6 +4696,7 @@ define("scripts/object/logo.js", function(exports){
  */ 
 define("scripts/object/lose.js", function(exports){
 	var layer = require("scripts/layer");
+	var sound = require("scripts/lib/sound");
 	var tween = require("scripts/lib/tween");
 	var timeline = require("scripts/timeline");
 	var Ucren = require("scripts/lib/ucren");
@@ -4678,11 +4800,13 @@ define("scripts/object/lose.js", function(exports){
 	};
 	
 	function createPosShow( x ){
+		var loseSnd = sound.create( "sound/negativa" );
 	    var image = layer.createImage( "default", "images/lose.png", x - 27, window_height - 52, 54, 50 ).scale( 1e-5, 1e-5 );
 	    var duration = 500;
 	
 	    var control = {
 	        show: function( start ){
+	        	loseSnd.stop();
 	            timeline.createTask({
 	                start: start, duration: duration, data: [ tween.back.co, 1e-5, 1 ],
 	                object: this, onTimeUpdate: this.onScaling, onTimeEnd: this.onShowEnd
@@ -4862,21 +4986,44 @@ define("scripts/object/score.js", function(exports){
 	 * 分数模块
 	 */
 	
-	var image, text1, text2, animLength = 500;
+	var image, bambam01, bambam02, bambam03, text1, text2, comboText, animLength = 500;
 	
 	var imageSx = -94, imageEx = 6;
-	var text1Sx = 150, text1Ex = 70;
+	var text1Sx = -90, text1Ex = 100;
 	var text2Sx = -93, text2Ex = 7;
+	var comboTextSx = window_width - 130, comboTextEx = 7;
 	
 	exports.anims = [];
+
+	exports.changeBambam = function(value) {
+		image.hide();
+		switch(value) {
+			case BAMBAM_MAL:
+				image = bambam01;
+				break;
+			case BAMBAM_NORMAL:
+				image = bambam02;
+				break;
+			case BAMBAM_RAIVA:
+				image = bambam03;
+				break;
+		}
+		image.show();
+	}
 	
 	exports.set = function(){
-	    image = layer.createImage( "default", "images/score.png", imageSx, 8, 60, 60 ).hide();
-	    text1 = layer.createText( "default", "0", text1Sx, 40, "90-#fc7f0c-#ffec53", "30px" ).hide();
-	    text2 = layer.createText( "default", "Melhor: 999", text2Sx, 80, "90-#fc7f0c-#ffec53", "14px" ).hide();
+	    bambam01 = layer.createImage( "default", "images/bambam-01.png", imageSx, 8, 77, 100 ).hide();
+	    bambam02 = layer.createImage( "default", "images/bambam-02.png", imageSx, 8, 77, 100 ).hide();
+	    bambam03 = layer.createImage( "default", "images/bambam-03.png", imageSx, 8, 77, 100 ).hide();
+	    text1 = layer.createText( "default", "0", text1Sx, 60, "90-#fc7f0c-#ffec53", "30px" ).hide();
+	    text2 = layer.createText( "default", "Melhor: 999", text2Sx, 120, "90-#fc7f0c-#ffec53", "14px" ).hide();
+	    comboText = layer.createText( "default", "0 hit combo", comboTextSx, 60, "90-#fc7f0c-#ffec53", "20px" ).hide();
+	    image = bambam02;
 	};
 	
 	exports.show = function( start ){
+		this.changeBambam(BAMBAM_NORMAL);
+
 		timeline.createTask({
 			start: start, duration: animLength, data: [ "show", imageSx, imageEx, text1Sx, text1Ex, text2Sx, text2Ex ],
 			object: this, onTimeUpdate: this.onTimeUpdate, onTimeStart: this.onTimeStart, onTimeEnd: this.onTimeEnd,
@@ -4890,6 +5037,19 @@ define("scripts/object/score.js", function(exports){
 			object: this, onTimeUpdate: this.onTimeUpdate, onTimeStart: this.onTimeStart, onTimeEnd: this.onTimeEnd,
 			recycle: this.anims
 		});
+	};
+
+	exports.showCombo = function() {
+		[ comboText ].invoke( "show" );
+	}
+
+	exports.hideCombo = function() {
+		[ comboText ].invoke( "hide" );
+	}
+
+	exports.setCombo = function( number ){
+		var txt = number || 0;
+	    comboText.attr( "text", txt + " hit combo");
 	};
 	
 	exports.number = function( number ){
@@ -4905,19 +5065,23 @@ define("scripts/object/score.js", function(exports){
 	
 	exports.onTimeUpdate = function( time, mode, isx, iex, t1sx, t1ex, t2sx, t2ex ){
 	    image.attr( "x", anim( time, isx, iex - isx, animLength ) );
+	    bambam01.attr( "x", anim( time, isx, iex - isx, animLength ) );
+	    bambam02.attr( "x", anim( time, isx, iex - isx, animLength ) );
+	    bambam03.attr( "x", anim( time, isx, iex - isx, animLength ) );
 	    text1.attr( "x", anim( time, t1sx, t1ex - t1sx, animLength ) );
 	    text2.attr( "x", anim( time, t2sx, t2ex - t2sx, animLength ) );
 	};
 	
 	exports.onTimeStart = function( mode ){
 		if( mode === "show" )
-			[ image, text1, text2 ].invoke( "show" );
+			[ text1, text2, image ].invoke( "show" );
 	};
 	
 	exports.onTimeEnd = function( mode ){
 	    if( mode === "hide" )
-	        [ image, text1, text2 ].invoke( "hide" ),
-	        text1.attr( "text", 0 );
+	        [ image, text1, text2, comboText, image ].invoke( "hide" ),
+	        text1.attr( "text", 0 ),
+	        comboText.attr( "text", "0 hit combo" );
 	};;
 
 	return exports;
