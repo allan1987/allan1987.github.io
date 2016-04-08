@@ -1972,7 +1972,10 @@ define("scripts/lib/buzz.js", function(exports){
 	            }
 	
 	            this.whenReady( function() {
-	                this.sound.currentTime = time;
+	            	try {
+	            		this.sound.currentTime = time;
+	            	}
+	            	catch(e) {}
 	            });
 	            return this;
 	        };
@@ -3995,7 +3998,7 @@ define("scripts/object/background.js", function(exports){
 			// Arranha Céu 300 x 600
 			var scriptAsync = Ucren.makeElement( "script", { "async": "true", "src": "http://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js" } );
 			Ucren.Element( "adsense" ).add( scriptAsync );
-			var ins = Ucren.makeElement( "ins", { "class": "adsbygoogle", "style": "display:inline-block;width:300px;height:600px", "data-ad-client": "ca-pub-4908542815370685", "data-ad-slot": "1294204425"+ ";" } );
+			var ins = Ucren.makeElement( "ins", { "class": "adsbygoogle", "style": "display:inline-block;width:300px;height:600px", "data-ad-client": "ca-pub-4908542815370685", "data-ad-slot": "1294204425" } );
 			Ucren.Element( "adsense" ).add( ins );
 			var layer = Ucren.makeElement( "script", { "innerHTML": "(adsbygoogle = window.adsbygoogle || []).push({});" } );
 			Ucren.Element( "adsense" ).add( layer );
