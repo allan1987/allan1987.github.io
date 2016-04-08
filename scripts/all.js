@@ -3993,7 +3993,7 @@ define("scripts/object/background.js", function(exports){
 	var applyAds = function() {
 		if((window.innerWidth - window_width) >= 300) {
 			// Arranha Céu 300 x 600
-			var scriptAsync = Ucren.makeElement( "script", { "async": "true", "src": "http://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js" + ";" } );
+			var scriptAsync = Ucren.makeElement( "script", { "async": "true", "src": "http://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js" } );
 			Ucren.Element( "adsense" ).add( scriptAsync );
 			var ins = Ucren.makeElement( "ins", { "class": "adsbygoogle", "style": "display:inline-block;width:300px;height:600px", "data-ad-client": "ca-pub-4908542815370685", "data-ad-slot": "1294204425"+ ";" } );
 			Ucren.Element( "adsense" ).add( ins );
