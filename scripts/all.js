@@ -3987,6 +3987,8 @@ define("scripts/object/background.js", function(exports){
 	var image, time;
 	
 	var random = Ucren.randomNumber;
+	document.getElementById("extra").style.width = window_width + "px";
+	document.getElementById("view").style.width = window_width + "px";
 
 	var applyAds = function() {
 		if((window.innerWidth - window_width) >= 300) {
